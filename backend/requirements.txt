@@ -6,3 +6,4 @@ python-dotenv>=1.0
 requests>=2.32
 cuid>=0.4
 gunicorn>=23.0
+whitenoise>=6.7
