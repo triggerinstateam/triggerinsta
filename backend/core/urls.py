@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.urls import path
 
 from core.views import (
@@ -14,7 +15,13 @@ from core.views import (
     webhook,
 )
 
+
+def health(request):
+    return JsonResponse({"status": "ok"})
+
+
 urlpatterns = [
+    path("health/", health),
     path("rules", rules.rules),
     path("instagram/media", instagram.media),
     path("instagram/status", instagram.status),
