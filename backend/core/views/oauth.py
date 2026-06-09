@@ -205,15 +205,20 @@ def instagram_login_exchange(request):
         ).json()
         access_token = long_lived.get("access_token") or short_token
 
-        # Step 3 — Instagram profile
+        # Step 3 — Instagram profile.
+        # Only request fields valid on the Instagram-Login /me node. "name" is NOT
+        # valid here and would error the whole request (leaving username empty), so
+        # we omit it and use the username as the display name.
         me = requests.get(
             f"{IG_GRAPH}/me",
             params={
-                "fields": "user_id,username,account_type,name,profile_picture_url",
+                "fields": "user_id,username,account_type,profile_picture_url",
                 "access_token": access_token,
             },
             timeout=TIMEOUT,
         ).json()
+        if isinstance(me, dict) and me.get("error"):
+            logger.error("Instagram /me error: %s", me["error"])
 
         ig_user_id = me.get("user_id") or user_id
         username = me.get("username")
@@ -221,7 +226,7 @@ def instagram_login_exchange(request):
             return Response({"error": "Could not resolve Instagram user"}, status=400)
 
         email = f"ig_{ig_user_id}@triggerflow.app"
-        name = me.get("name") or username or "Instagram User"
+        name = username or "Instagram User"
         image = me.get("profile_picture_url")
 
         # Store the Instagram token + account so the dashboard can fetch this
