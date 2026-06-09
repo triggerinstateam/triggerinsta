@@ -17,7 +17,12 @@ export async function GET(request: Request) {
 
     const decodedState = decodeURIComponent(state);
 
-    const res = await callBackend("/instagram/oauth/exchange", {
+    // LOGIN → native Instagram login exchange (instagram.com / graph.instagram.com).
+    // CONNECT (state = email) → unchanged Facebook-for-Business exchange.
+    const isLogin = decodedState === "login";
+    const endpoint = isLogin ? "/instagram/login/exchange" : "/instagram/oauth/exchange";
+
+    const res = await callBackend(endpoint, {
       method: "POST",
       body: JSON.stringify({ code, state: decodedState }),
     });

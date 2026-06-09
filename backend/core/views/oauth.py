@@ -18,6 +18,8 @@ from core.models import User
 logger = logging.getLogger(__name__)
 
 GRAPH = "https://graph.facebook.com/v18.0"
+IG_OAUTH = "https://api.instagram.com/oauth/access_token"
+IG_GRAPH = "https://graph.instagram.com"
 TIMEOUT = 30
 
 
@@ -144,6 +146,103 @@ def exchange(request):
         })
     except Exception as err:  # noqa: BLE001
         logger.error("Instagram OAuth exchange error: %s", err)
+        return Response({"error": str(err)}, status=500)
+
+
+@api_view(["POST"])
+def instagram_login_exchange(request):
+    """Native "Instagram API with Instagram Login" — authentication only.
+
+    Logs a user in directly with their Instagram (Business/Creator) account.
+    Mints a synthetic email (Instagram login returns no email) and upserts the
+    user for identity/display only. Does NOT touch the instagram_* automation
+    fields — comment replies/DMs/webhook keep using the page-token mechanism.
+    """
+    code = (request.data or {}).get("code")
+    if not code:
+        return Response({"error": "invalid_request"}, status=400)
+
+    app_id = settings.INSTAGRAM_APP_ID
+    app_secret = settings.INSTAGRAM_APP_SECRET
+    redirect_uri = settings.INSTAGRAM_REDIRECT_URI
+    if not (app_id and app_secret and redirect_uri):
+        return Response({"error": "Instagram login credentials not configured"}, status=500)
+
+    try:
+        # Step 1 — code → short-lived Instagram user token
+        token_resp = requests.post(
+            IG_OAUTH,
+            data={
+                "client_id": app_id,
+                "client_secret": app_secret,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri,
+                "code": code,
+            },
+            timeout=TIMEOUT,
+        )
+        token_data = token_resp.json()
+        if not token_resp.ok or token_data.get("error_type") or token_data.get("error"):
+            msg = token_data.get("error_message") or token_data.get("error") or "Unknown error"
+            return Response({"error": f"Instagram token exchange failed: {msg}"}, status=400)
+
+        # Response may be flat or wrapped in {"data": [...]}.
+        payload = (token_data.get("data") or [token_data])[0]
+        short_token = payload.get("access_token")
+        user_id = payload.get("user_id")
+        if not short_token:
+            return Response({"error": "No access token returned"}, status=400)
+
+        # Step 2 — long-lived token (used only for the profile call below)
+        long_lived = requests.get(
+            f"{IG_GRAPH}/access_token",
+            params={
+                "grant_type": "ig_exchange_token",
+                "client_secret": app_secret,
+                "access_token": short_token,
+            },
+            timeout=TIMEOUT,
+        ).json()
+        access_token = long_lived.get("access_token") or short_token
+
+        # Step 3 — Instagram profile
+        me = requests.get(
+            f"{IG_GRAPH}/me",
+            params={
+                "fields": "user_id,username,account_type,name,profile_picture_url",
+                "access_token": access_token,
+            },
+            timeout=TIMEOUT,
+        ).json()
+
+        ig_user_id = me.get("user_id") or user_id
+        username = me.get("username")
+        if not ig_user_id:
+            return Response({"error": "Could not resolve Instagram user"}, status=400)
+
+        email = f"ig_{ig_user_id}@triggerflow.app"
+        name = me.get("name") or username or "Instagram User"
+        image = me.get("profile_picture_url")
+
+        # Identity/display only — do NOT set instagram_* automation fields.
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={"name": name, "image": image},
+        )
+        if not created:
+            user.name = name
+            user.image = image
+            user.save(update_fields=["name", "image"])
+
+        return Response({
+            "isLoginFlow": True,
+            "email": email,
+            "name": name,
+            "image": image or "",
+            "username": username,
+        })
+    except Exception as err:  # noqa: BLE001
+        logger.error("Instagram login exchange error: %s", err)
         return Response({"error": str(err)}, status=500)
 
 
