@@ -27,7 +27,12 @@ def media(request):
         return Response({"error": "Instagram not connected"}, status=400)
 
     try:
-        items = graph_api.fetch_user_media(user.instagram_account_id, user.instagram_access_token)
+        if user.instagram_account_type == "INSTAGRAM":
+            # Authenticated via Instagram Login → Instagram Graph (graph.instagram.com).
+            items = graph_api.fetch_user_media_instagram(user.instagram_access_token)
+        else:
+            # Facebook-page-linked business account → Facebook Graph.
+            items = graph_api.fetch_user_media(user.instagram_account_id, user.instagram_access_token)
     except graph_api.GraphAPIError as err:
         if err.code == 190:
             user.instagram_connected = False

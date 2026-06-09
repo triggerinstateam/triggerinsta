@@ -69,7 +69,14 @@ def _process_comment(comment: dict):
     if not rule:
         return
 
-    connected = User.objects.filter(instagram_connected=True).first()
+    # Automation runs on the Facebook-page-linked business account (page token on
+    # graph.facebook.com). Exclude Instagram-Login accounts, whose tokens target
+    # graph.instagram.com and would not work for these reply/DM calls.
+    connected = (
+        User.objects.filter(instagram_connected=True)
+        .exclude(instagram_account_type="INSTAGRAM")
+        .first()
+    )
     if not connected or not connected.instagram_access_token:
         return
     token = connected.instagram_access_token

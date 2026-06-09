@@ -118,6 +118,28 @@ def fetch_user_media(account_id: str, token: str) -> list[dict]:
     return media
 
 
+def fetch_user_media_instagram(token: str) -> list[dict]:
+    """Paginate media for an account authenticated via Instagram Login
+    (Instagram User access token → graph.instagram.com/me/media)."""
+    fields = (
+        "id,media_type,media_url,thumbnail_url,permalink,caption,"
+        "timestamp,like_count,comments_count"
+    )
+    endpoint = (
+        f"https://graph.instagram.com/me/media?fields={fields}&limit=50&access_token={token}"
+    )
+    media: list[dict] = []
+    while endpoint:
+        resp = requests.get(endpoint, timeout=TIMEOUT)
+        if not resp.ok:
+            err = resp.json().get("error", {})
+            raise GraphAPIError(err.get("message", resp.reason), code=err.get("code"))
+        data = resp.json()
+        media.extend(data.get("data", []))
+        endpoint = (data.get("paging") or {}).get("next")
+    return media
+
+
 def fetch_media_for_verify(account_id: str, token: str) -> list[dict]:
     """Paginate id/shortcode/permalink/caption used to resolve a pasted reel URL."""
     endpoint = (

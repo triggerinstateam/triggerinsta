@@ -224,15 +224,25 @@ def instagram_login_exchange(request):
         name = me.get("name") or username or "Instagram User"
         image = me.get("profile_picture_url")
 
-        # Identity/display only — do NOT set instagram_* automation fields.
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={"name": name, "image": image},
-        )
+        # Store the Instagram token + account so the dashboard can fetch this
+        # user's media via graph.instagram.com. account_type="INSTAGRAM" marks
+        # this as an Instagram-Login account (vs "BUSINESS" = Facebook-page flow),
+        # so media/status read from the right API and automation can tell them apart.
+        ig_fields = {
+            "name": name,
+            "image": image,
+            "instagram_connected": True,
+            "instagram_access_token": access_token,
+            "instagram_account_id": str(ig_user_id),
+            "instagram_username": username or "unknown",
+            "instagram_account_type": "INSTAGRAM",
+            "instagram_connected_at": _now(),
+        }
+        user, created = User.objects.get_or_create(email=email, defaults=ig_fields)
         if not created:
-            user.name = name
-            user.image = image
-            user.save(update_fields=["name", "image"])
+            for k, v in ig_fields.items():
+                setattr(user, k, v)
+            user.save()
 
         return Response({
             "isLoginFlow": True,
