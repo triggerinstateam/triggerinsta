@@ -29,6 +29,13 @@ DEBUG = env("DEBUG", "False").lower() in ("1", "true", "yes")
 
 ALLOWED_HOSTS = [h.strip() for h in env("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
+# Railway sends healthcheck requests with Host: healthcheck.railway.app, and also
+# serves the app on its own public domain. Always allow these regardless of the
+# configured ALLOWED_HOSTS, otherwise Django rejects healthchecks with 400 DisallowedHost.
+for _host in ("healthcheck.railway.app", env("RAILWAY_PUBLIC_DOMAIN")):
+    if _host and "*" not in ALLOWED_HOSTS and _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
+
 CSRF_TRUSTED_ORIGINS = [h.strip() for h in env("CSRF_TRUSTED_ORIGINS", "").split(",") if h.strip()]
 
 # Shared secret the Next.js proxy must present on every internal request.
