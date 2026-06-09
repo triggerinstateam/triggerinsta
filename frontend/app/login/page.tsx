@@ -13,6 +13,7 @@ function InstagramIcon() {
 
 export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [igLoading, setIgLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
@@ -20,9 +21,14 @@ export default function LoginPage() {
   };
 
   const handleInstagramSignIn = async () => {
-    const res = await fetch("/api/auth/instagram/url?flow=login");
-    const { url } = await res.json();
-    window.location.href = url;
+    setIgLoading(true);
+    try {
+      const res = await fetch("/api/auth/instagram/url?flow=login");
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      setIgLoading(false);
+    }
   };
 
   return (
@@ -99,6 +105,29 @@ export default function LoginPage() {
               </svg>
             )}
             Continue with Google
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="h-px flex-1 bg-[#0F0F0F]/[0.1]" />
+            <span className="text-[10px] uppercase tracking-widest text-[#6B6660]">or</span>
+            <div className="h-px flex-1 bg-[#0F0F0F]/[0.1]" />
+          </div>
+
+          {/* Instagram login */}
+          <button
+            onClick={handleInstagramSignIn}
+            disabled={igLoading}
+            type="button"
+            className="w-full flex items-center justify-center gap-3 rounded-full py-3 text-sm font-medium text-white transition-all disabled:opacity-50 relative z-10"
+            style={{ background: "linear-gradient(90deg, #833AB4 0%, #C13584 35%, #E1306C 65%, #F77737 100%)" }}
+          >
+            {igLoading ? (
+              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+            ) : (
+              <InstagramIcon />
+            )}
+            Continue with Instagram
           </button>
 
           <p className="text-center text-xs text-[#6B6660] mt-6">
